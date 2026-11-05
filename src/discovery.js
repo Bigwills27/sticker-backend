@@ -28,6 +28,31 @@ function mediaUrl(value){
  return null;
 }
 
+function logMissingMedia(comment,{videoId,commentId}){
+ if(process.env.DISCOVERY_DEBUG!=='1')return;
+ const sticker=comment.cmt_sticker_struct;
+ const mediaFields=[];
+ function inspect(value,path,depth=0){
+  if(depth>8||mediaFields.length>=30)return;
+  if(typeof value==='string'&&/^https?:\/\//.test(value)){
+   try{
+    const url=new URL(value);let accepted=false;
+    try{accepted=classifyUrl(value)==='media'}catch{}
+    mediaFields.push({path,host:url.hostname,accepted});
+   }catch{}
+  }else if(value&&typeof value==='object'){
+   for(const [key,child]of Object.entries(value))inspect(child,`${path}.${key}`,depth+1);
+  }
+ }
+ inspect(sticker,'cmt_sticker_struct');
+ console.info('[sticker-discovery] '+JSON.stringify({
+  event:'matched_media_unavailable',renderCommit:process.env.RENDER_GIT_COMMIT||null,
+  videoId,commentId,contentType:comment.content_type,
+  stickerPresent:!!sticker,stickerKeys:Object.keys(sticker||{}),
+  animatedKeys:Object.keys(sticker?.animated_url||{}),staticKeys:Object.keys(sticker?.static_url||{}),mediaFields,
+ }));
+}
+
 export function extractCommentMedia(comment,videoId){
  if(String(comment.aweme_id)!==videoId||typeof comment.cid!=='string'||!/^\d+$/.test(comment.cid))return [];
  const base={commentId:comment.cid,videoId,author:comment.user?.unique_id||comment.user?.nickname||null,text:comment.text||'',parentCommentId:comment.reply_id&&comment.reply_id!=='0'?comment.reply_id:null};
@@ -112,6 +137,7 @@ export async function scanComments(target,{readPage=readTikTokPage,maxPages=200,
  const selected=[...candidates.values()].filter(row=>!commentId||row.commentId===commentId);
  const counts={sticker:selected.filter(r=>r.type==='sticker').length,photo:selected.filter(r=>r.type==='photo').length,unavailable:selected.filter(r=>!r.available).length};
  const matchStatus=!commentId?null:!matchedComment?'not_retrieved':!selected.length?'no_media':selected.some(r=>r.available)?'matched':'media_unavailable';
+ if(matchStatus==='media_unavailable')logMissingMedia(matchedComment,{videoId,commentId});
  return {videoId,commentId,resolvedUrl:target.resolvedUrl,videoUrl:`https://www.tiktok.com/@/video/${videoId}`,provider:'tiktok-public-comments',scope:commentId?'comment':'video',exactCommentMatched:!!matchedComment,matchStatus,matchedComment:matchedComment?{id:matchedComment.cid,author:matchedComment.user?.unique_id||matchedComment.user?.nickname||null,text:matchedComment.text||''}:null,candidates:selected,counts,coverage};
 }
 

@@ -11,6 +11,45 @@ const sticker=(cid=commentId,aweme_id=videoId)=>({cid,aweme_id,text:'She’s lik
 const page=(comments,cursor=50,has_more=0,total=comments.length)=>({status_code:0,comments,cursor,has_more,total});
 const target={videoId,commentId,resolvedUrl:`${videoUrl}?share_comment_id=${commentId}`};
 
+function diagnosticEnv(t,enabled){
+ const before=process.env.DISCOVERY_DEBUG,commit=process.env.RENDER_GIT_COMMIT;
+ if(enabled)process.env.DISCOVERY_DEBUG='1';else delete process.env.DISCOVERY_DEBUG;
+ process.env.RENDER_GIT_COMMIT='test-deploy';
+ t.after(()=>{if(before===undefined)delete process.env.DISCOVERY_DEBUG;else process.env.DISCOVERY_DEBUG=before;if(commit===undefined)delete process.env.RENDER_GIT_COMMIT;else process.env.RENDER_GIT_COMMIT=commit;});
+ return t.mock.method(console,'info',()=>{});
+}
+
+test('opt-in logs identify missing upstream sticker payload without exposing comment data',async t=>{
+ const log=diagnosticEnv(t,true);
+ const result=await scanComments(target,{readPage:async()=>page([{cid:commentId,aweme_id:videoId,content_type:17,text:'private comment',user:{unique_id:'private user'}}])});
+ assert.equal(result.matchStatus,'media_unavailable');
+ assert.equal(log.mock.callCount(),1);
+ const output=log.mock.calls[0].arguments[0];
+ assert.ok(output.startsWith('[sticker-discovery] '));
+ const report=JSON.parse(output.slice('[sticker-discovery] '.length));
+ assert.equal(report.stickerPresent,false);assert.equal(report.renderCommit,'test-deploy');
+ assert.equal(report.commentId,commentId);assert.deepEqual(report.mediaFields,[]);
+ assert.ok(!output.includes('private comment')&&!output.includes('private user'));
+});
+
+test('missing-media logs reveal rejected CDN hosts without signed URLs',async t=>{
+ const log=diagnosticEnv(t,true);
+ const comment=sticker();comment.cmt_sticker_struct.animated_url.high_resolution_url.url_list=['https://cdn.example.org/private-path.webp?signature=SECRET'];
+ await scanComments(target,{readPage:async()=>page([comment])});
+ assert.equal(log.mock.callCount(),1);
+ const output=log.mock.calls[0].arguments[0];
+ const report=JSON.parse(output.slice('[sticker-discovery] '.length));
+ assert.equal(report.stickerPresent,true);
+ assert.ok(report.mediaFields.some(field=>field.host==='cdn.example.org'&&field.accepted===false));
+ assert.ok(!output.includes('SECRET')&&!output.includes('private-path'));
+});
+
+test('missing-media diagnostics are disabled by default',async t=>{
+ const log=diagnosticEnv(t,false);
+ await scanComments(target,{readPage:async()=>page([{cid:commentId,aweme_id:videoId,content_type:17}])});
+ assert.equal(log.mock.callCount(),0);
+});
+
 test('recognizes supported comment URL forms without rounding 64-bit IDs',()=>{
  for(const key of ['share_comment_id','comment_id','cid'])assert.deepEqual(identifiers(`${videoUrl}?${key}=${commentId}`),{videoId,commentId});
  assert.deepEqual(identifiers(`https://m.tiktok.com/v/${videoId}.html?cid=${Buffer.from(commentId).toString('base64')}`),{videoId,commentId});

@@ -19,6 +19,22 @@ headers will fix the issue.
 
 ## Compare the deployed code and upstream payload
 
+### Without Render Shell (including free services)
+
+Deploy the backend changes, then set `DISCOVERY_DEBUG=1` under the service's
+Environment settings and apply the change. Keep the normal start command
+`npm start`. Submit the failing comment through the website, then open the
+service's normal Logs view and look for a line beginning
+`[sticker-discovery]`. This logs the matched comment's missing-media structure
+from the real extraction request, including `renderCommit`, `stickerPresent`,
+field names, and CDN hosts with their allowlist result. It does not log comment
+text, usernames, signed URL paths or query strings, cookies, or environment
+secrets. Send that diagnostic line for comparison, then remove the variable or
+set it to `0` when finished. This is diagnostic instrumentation, not a fix for
+TikTok withholding a URL.
+
+### With Render Shell
+
 First check Render's deployed commit against the backend repository. The
 baseline tested locally was `d50dc67c47607d104e3735fb09911e93857b0768`, which
 already includes mobile request parameters, browser headers, and nested media
@@ -53,9 +69,8 @@ Compare:
 - Empty/non-JSON or unsuccessful upstream responses: this is a comment API
   access failure, distinct from a matched comment with missing media.
 
-If Render Shell is unavailable, a matching raw-response diagnostic from the
-running service is still required before identifying a specific parser or
-network fix. Do not share `.env` contents or TikTok cookies.
+If Shell is unavailable, use the Environment/Logs method above. Do not share
+`.env` contents or TikTok cookies.
 
 The successful direct-CDN probe is a temporary workaround: a current media URL
 found locally can be pasted into the existing application. Signed CDN URLs
