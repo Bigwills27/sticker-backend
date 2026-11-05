@@ -10,7 +10,7 @@ const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const dataDir=path.resolve(root,process.env.DATA_DIR||'./data');await mkdir(dataDir,{recursive:true});
 export function createStickerServer({discoverMedia=discover,download=downloadMedia}={}){
 const jobs=new Map();let active=0;
-const origins=new Set((process.env.FRONTEND_ORIGIN||'http://localhost:5173').split(',').map(x=>x.trim()));
+const origins=new Set((process.env.FRONTEND_ORIGIN||'http://localhost:5173').split(',').map(x=>x.trim().replace(/\/+$/,'')).filter(Boolean));
 origins.add('http://127.0.0.1:5173');origins.add('http://localhost:4173');origins.add('http://127.0.0.1:4173');
 const queue=[];const TTL=60*60*1000;
 function publicJob(j){const {inputUrl,...publicFields}=j;return publicFields;}

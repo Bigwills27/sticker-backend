@@ -46,6 +46,12 @@ test('extracts the newer type-17 original instead of its thumbnail',()=>{
  const [row]=extractCommentMedia(comment,videoId);assert.equal(row.available,true);assert.equal(row.mediaUrl,media);assert.equal(row.commentId,commentId);
 });
 
+test('extracts sticker URLs from nested payload variants',()=>{
+ const comment={...sticker(),cmt_sticker_struct:{animated_url:{high_resolution_url:{url:media}}}};
+ const [row]=extractCommentMedia(comment,videoId);
+ assert.equal(row.mediaUrl,media);assert.equal(row.available,true);
+});
+
 test('rejects empty or conflicting duplicate comment IDs',()=>{
  assert.throws(()=>identifiers(`${videoUrl}?comment_id=`),e=>e.code==='INVALID_COMMENT_ID');
  assert.throws(()=>identifiers(`${videoUrl}?comment_id=123&comment_id=456`),e=>e.code==='INVALID_COMMENT_ID');

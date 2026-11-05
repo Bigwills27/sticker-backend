@@ -21,8 +21,11 @@ export async function resolveTikTokUrl(input,{request:send=request}={}){
  throw new AppError('REDIRECT_LIMIT','This TikTok link redirected too many times. Copy its full video or comment URL.');
 }
 
-function mediaUrl(urls){
- return (urls||[]).find(url=>{try{return classifyUrl(url)==='media'}catch{return false}})||null;
+function mediaUrl(value){
+ if(typeof value==='string'){try{return classifyUrl(value)==='media'?value:null}catch{return null}}
+ if(Array.isArray(value)){for(const item of value){const url=mediaUrl(item);if(url)return url}return null}
+ if(value&&typeof value==='object'){for(const item of Object.values(value)){const url=mediaUrl(item);if(url)return url}}
+ return null;
 }
 
 export function extractCommentMedia(comment,videoId){
@@ -33,10 +36,10 @@ export function extractCommentMedia(comment,videoId){
  const sticker=comment.cmt_sticker_struct;
  if(sticker){
   const groups=[sticker.animated_url,sticker.static_url];let url=null;
-  for(const group of groups){for(const size of ['high_resolution_url','mid_resolution_url','low_resolution_url']){url=mediaUrl(group?.[size]?.url_list);if(url)break;}if(url)break;}
+  for(const group of groups){for(const size of ['high_resolution_url','mid_resolution_url','low_resolution_url']){url=mediaUrl(group?.[size]);if(url)break;}if(url)break;}
   add('sticker',url,0);
  }else if(comment.content_type===17||/^\[Sticker\]/i.test(comment.text||''))add('sticker',null,0);
- for(const [index,image]of (comment.image_list||[]).entries())add('photo',mediaUrl(image.origin_url?.url_list),index);
+ for(const [index,image]of (comment.image_list||[]).entries())add('photo',mediaUrl(image.origin_url),index);
  return rows;
 }
 
