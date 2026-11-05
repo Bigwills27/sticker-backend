@@ -1,0 +1,2 @@
+import fs from 'node:fs';
+export function systemBrowser(){return [process.env.BROWSER_EXECUTABLE_PATH,'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome','/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge','/usr/bin/google-chrome','/usr/bin/chromium',process.env.LOCALAPPDATA&&`${process.env.LOCALAPPDATA}/Google/Chrome/Application/chrome.exe`,'C:/Program Files/Google/Chrome/Application/chrome.exe'].find(p=>p&&fs.existsSync(p));}

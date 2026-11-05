@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Environment files and local secrets
+.env
+.env.*
+!.env.example
+
+# Generated application data
+data/
+
+# Test and coverage output
+coverage/
+playwright-report/
+test-results/
+
+# Logs and local OS files
+*.log
+.DS_Store
