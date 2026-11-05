@@ -48,7 +48,7 @@ async function readTikTokPage({videoId,parentCommentId,commentId,cursor,signal})
  // Current mobile response includes original media for newer type-17 stickers.
  // Without the version/platform fields TikTok returns only a "[Sticker]" marker.
  url.search=new URLSearchParams({aid:'1233',version_code:'420000',version_name:'42.0.0',device_platform:'android',[parentCommentId?'item_id':'aweme_id']:videoId,count:'50',cursor:String(cursor),...(parentCommentId?{comment_id:parentCommentId}:commentId&&cursor===0?{insert_ids:commentId}:{})}).toString();
- const response=await fetch(url,{redirect:'error',signal:AbortSignal.any([signal,AbortSignal.timeout(15000)])});
+ const response=await fetch(url,{redirect:'error',headers:{'Accept':'application/json','Accept-Language':'en-US,en;q=0.9','User-Agent':'Mozilla/5.0 (Linux; Android 13; Pixel 7)','Referer':'https://www.tiktok.com/'},signal:AbortSignal.any([signal,AbortSignal.timeout(15000)])});
  if(!response.ok)throw blocked();
  const text=await response.text();
  if(text.length>12*1024*1024)throw blocked();
