@@ -99,4 +99,4 @@ server.on('close',()=>clearInterval(cleaner));
 return server;
 }
 export const server=createStickerServer();
-if(process.argv[1]===fileURLToPath(import.meta.url))server.listen(Number(process.env.PORT||8080),process.env.HOST||'127.0.0.1',()=>console.log(`Sticker Studio API: http://localhost:${process.env.PORT||8080}`));
+if(process.argv[1]===fileURLToPath(import.meta.url))server.listen(Number(process.env.PORT||8080),process.env.HOST||'0.0.0.0',()=>console.log(`Sticker Studio API: http://localhost:${process.env.PORT||8080}`));
