@@ -9,7 +9,7 @@ export function classifyUrl(value){
  if(u.protocol!=='https:'||u.username||u.password||(u.port&&u.port!=='443')) throw new AppError('INVALID_URL','Use an HTTPS link without credentials or a custom port.');
  const h=u.hostname.toLowerCase();
  if(h==='tiktok.com'||h.endsWith('.tiktok.com'))return 'comment';
- if(['ibyteimg.com','tiktokcdn.com'].some(d=>h.endsWith('.'+d)))return 'media';
+ if(['ibyteimg.com','tiktokcdn.com','tiktokcdn-us.com'].some(d=>h.endsWith('.'+d)))return 'media';
  throw new AppError('UNSUPPORTED_URL','This version accepts TikTok links and TikTok sticker media links.');
 }
 export function identifiers(value){

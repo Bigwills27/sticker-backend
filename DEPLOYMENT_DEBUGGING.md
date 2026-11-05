@@ -1,5 +1,20 @@
 # TikTok comment media on Render
 
+## Confirmed cause and fix
+
+The subsequent Render diagnostic showed that TikTok returned sticker URLs on
+`p16-tiktok-dm-sticker-sign.tiktokcdn-us.com`. The payload contained the expected
+animation fields, but each URL had `accepted: false`: our media domain allowlist
+omitted `tiktokcdn-us.com`. This was an application validation bug, not evidence
+that Render was blocked or that TikTok withheld the file.
+
+`src/media.js` now accepts subdomains of that regional CDN. Regression tests
+cover the reported response structure and reject lookalike hosts, insecure
+URLs, credentials, and custom ports. Push and redeploy the backend, retry the
+comment, then disable `DISCOVERY_DEBUG` after confirming the deployed download.
+The historical probes below explain how this was isolated; regional CDN
+download from Render still requires verification after deployment.
+
 The reported link was tested against both local discovery and
 `https://sticker-backend-9ty9.onrender.com` on 2026-11-05.
 

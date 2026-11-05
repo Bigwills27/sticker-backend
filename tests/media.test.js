@@ -5,6 +5,20 @@ import sharp from 'sharp';
 import {classifyUrl,convertMedia,inspect,identifiers} from '../src/media.js';
 import * as media from '../src/media.js';
 
+test('accepts the regional TikTok US CDN returned to Render',()=>{
+ assert.equal(classifyUrl('https://p16-tiktok-dm-sticker-sign.tiktokcdn-us.com/sticker.awebp'),'media');
+});
+
+test('regional CDN support rejects lookalikes, credentials and insecure URLs',()=>{
+ for(const url of [
+  'https://tiktokcdn-us.com.evil.test/sticker.webp',
+  'https://evil-tiktokcdn-us.com/sticker.webp',
+  'http://p16-tiktok-dm-sticker-sign.tiktokcdn-us.com/sticker.webp',
+  'https://user:pass@p16-tiktok-dm-sticker-sign.tiktokcdn-us.com/sticker.webp',
+  'https://p16-tiktok-dm-sticker-sign.tiktokcdn-us.com:444/sticker.webp',
+ ])assert.throws(()=>classifyUrl(url));
+});
+
 test('rejects unrelated hosts, insecure URLs and credentials',()=>{for(const u of ['https://evil.com/a','http://www.tiktok.com/a','https://www.tiktok.com.evil.com/a','https://u:p@www.tiktok.com/a','https://www.tiktok.com:444/a'])assert.throws(()=>classifyUrl(u));});
 test('parses video and exact comment identifiers',()=>{assert.deepEqual(identifiers('https://www.tiktok.com/@user/video/123?share_comment_id=456'),{videoId:'123',commentId:'456'});});
 test('converts static PNG to a static transparent WebP',async()=>{const input=await sharp({create:{width:120,height:230,channels:4,background:{r:50,g:140,b:30,alpha:.5}}}).png().toBuffer();const r=await convertMedia(input);assert.equal(r.metadata.output.frames,1);assert.equal(r.metadata.output.width,512);assert.equal(r.metadata.output.height,512);assert.ok(Object.values(r.metadata.checks).every(Boolean));});

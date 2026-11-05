@@ -11,6 +11,18 @@ const sticker=(cid=commentId,aweme_id=videoId)=>({cid,aweme_id,text:'She’s lik
 const page=(comments,cursor=50,has_more=0,total=comments.length)=>({status_code:0,comments,cursor,has_more,total});
 const target={videoId,commentId,resolvedUrl:`${videoUrl}?share_comment_id=${commentId}`};
 
+test('Render regional CDN payload produces an available exact-comment sticker',async()=>{
+ const vid='7704392415708187935',cid='7704397626653606676';
+ const url='https://p16-tiktok-dm-sticker-sign.tiktokcdn-us.com/sticker.awebp';
+ const comment={cid,aweme_id:vid,content_type:17,cmt_sticker_struct:{
+  animated_url:Object.fromEntries(['high_resolution_url','low_resolution_url','mid_resolution_url'].map(size=>[size,{url_list:[url]}])),static_url:{},
+ }};
+ const result=await scanComments({videoId:vid,commentId:cid},{readPage:async()=>page([comment])});
+ assert.equal(result.matchStatus,'matched');assert.equal(result.exactCommentMatched,true);
+ assert.equal(result.candidates.length,1);assert.equal(result.candidates[0].available,true);
+ assert.equal(result.candidates[0].mediaUrl,url);assert.equal(result.candidates[0].commentId,cid);
+});
+
 function diagnosticEnv(t,enabled){
  const before=process.env.DISCOVERY_DEBUG,commit=process.env.RENDER_GIT_COMMIT;
  if(enabled)process.env.DISCOVERY_DEBUG='1';else delete process.env.DISCOVERY_DEBUG;
