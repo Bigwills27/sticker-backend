@@ -4,6 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "node scripts/check-syntax.mjs",
+    "setup:admin": "node scripts/setup-admin.mjs",
+    "db:setup": "node scripts/db-setup.mjs",
+    "test:neon": "node --env-file=.env tests/neon-integration.mjs",
+    "test:admin-ui": "node --env-file=.env tests/admin-ui.mjs",
+    "test:admin-ui:local": "node tests/admin-ui.mjs --local-db",
     "dev": "node --env-file=.env --watch src/server.js",
     "start": "node src/server.js",
     "test": "node --test tests/*.test.js",
@@ -12,11 +18,20 @@
     "postinstall": "node src/setup-browser.js"
   },
   "dependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc14",
     "fflate": "^0.8.3",
+    "jose": "^6.2.15",
+    "libphonenumber-js": "^1.13.15",
+    "pg": "^8.23.1",
+    "pino": "^10.4.0",
     "playwright": "^1.56.0",
+    "qrcode": "^1.5.4",
     "sharp": "^0.35.5"
   },
   "engines": {
     "node": ">=22"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4"
   }
 }

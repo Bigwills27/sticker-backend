@@ -6,14 +6,23 @@ import { randomUUID } from 'node:crypto';
 import { AppError,classifyUrl,downloadMedia,prepareMedia } from './media.js';
 import { discover } from './discovery.js';
 import { createMediaBundle } from './bundle.js';
+import { selectBatchCandidates } from './whatsapp-batches.js';
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const dataDir=path.resolve(root,process.env.DATA_DIR||'./data');await mkdir(dataDir,{recursive:true});
-export function createStickerServer({discoverMedia=discover,download=downloadMedia}={}){
+export function createStickerServer({discoverMedia=discover,download=downloadMedia,services=null,frontendOrigins=process.env.FRONTEND_ORIGIN||'http://localhost:5173'}={}){
 const jobs=new Map();let active=0;
-const origins=new Set((process.env.FRONTEND_ORIGIN||'http://localhost:5173').split(',').map(x=>x.trim().replace(/\/+$/,'')).filter(Boolean));
+const origins=new Set(frontendOrigins.split(',').map(x=>x.trim().replace(/\/+$/,'')).filter(Boolean));
 origins.add('http://127.0.0.1:5173');origins.add('http://localhost:4173');origins.add('http://127.0.0.1:4173');
 const queue=[];const TTL=60*60*1000;
 function publicJob(j){const {inputUrl,...publicFields}=j;return publicFields;}
+async function readStickerJob(id){
+ const job=jobs.get(id);
+ if(!job||job.status!=='succeeded'||!job.result?.stickerFile||!job.result.validated)throw new AppError('STICKER_EXPIRED','This sticker is unavailable. Fetch it again before sending.',404);
+ const bytes=await readFile(path.join(dataDir,id,'sticker.webp')).catch(()=>null);
+ if(!bytes||bytes.length>500*1024)throw new AppError('STICKER_UNAVAILABLE','This sticker cannot be sent to WhatsApp.');
+ return bytes;
+}
+function readBatchCandidates(input){return selectBatchCandidates(input,jobs.get(input.discoveryJobId));}
 function json(res,status,body){const data=JSON.stringify(body);res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store','Content-Length':Buffer.byteLength(data)});res.end(data);}
 async function body(req,maxSize=16384){let chunks=[],size=0;for await(const c of req){size+=c.length;if(size>maxSize)throw new AppError('BODY_TOO_LARGE','The request is too large.');chunks.push(c)}try{return JSON.parse(Buffer.concat(chunks).toString())}catch{throw new AppError('INVALID_BODY','Send a valid JSON request.')}}
 function submitBundle(input){
@@ -79,10 +88,15 @@ const server=http.createServer(async(req,res)=>{
  if(origin&&!origins.has(origin))return json(res,403,{error:{code:'ORIGIN_DENIED',message:'This frontend origin is not configured.'}});
  if(origin){res.setHeader('Access-Control-Allow-Origin',origin);res.setHeader('Vary','Origin');}
  res.setHeader('X-Content-Type-Options','nosniff');
- if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type'});return res.end();}
+ if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type, X-CSRF-Token'});return res.end();}
  try{
   const pathname=new URL(req.url,'http://localhost').pathname;
   if(req.method==='GET'&&pathname==='/api/health')return json(res,200,{ok:true,version:'1.0.0'});
+  if(pathname.startsWith('/api/admin/')||pathname.startsWith('/api/whatsapp/')){
+   if(services){if(await services.handle(req,res,pathname,{json,body,readStickerJob,readBatchCandidates}))return;}
+   else if(pathname==='/api/whatsapp/status'&&req.method==='GET')return json(res,200,{available:false});
+   else throw new AppError('WHATSAPP_NOT_CONFIGURED','WhatsApp administration is not ready. Check the backend configuration.',503);
+  }
   if(req.method==='POST'&&pathname==='/api/stickers/extract'){const job=submit(await body(req));return json(res,202,{...job,statusUrl:`/api/jobs/${job.id}`});}
   if(req.method==='POST'&&pathname==='/api/stickers/bundle'){const job=submitBundle(await body(req,512*1024));return json(res,202,{...job,statusUrl:`/api/jobs/${job.id}`});}
   if(req.method==='POST'&&pathname==='/api/examples/convert'){const job=submit({url:'saved-example'},{example:true});return json(res,202,{...job,statusUrl:`/api/jobs/${job.id}`});}
@@ -99,4 +113,26 @@ server.on('close',()=>clearInterval(cleaner));
 return server;
 }
 export const server=createStickerServer();
-if(process.argv[1]===fileURLToPath(import.meta.url))server.listen(Number(process.env.PORT||8080),process.env.HOST||'0.0.0.0',()=>console.log(`Sticker Studio API: http://localhost:${process.env.PORT||8080}`));
+if(process.argv[1]===fileURLToPath(import.meta.url)){
+ let services=null;
+ const origins=new Set((process.env.FRONTEND_ORIGIN||'http://localhost:5173').split(',').map(value=>value.trim().replace(/\/+$/,'')).filter(Boolean));
+ if(process.env.NODE_ENV!=='production'&&process.env.RENDER!=='true'){
+  for(const value of ['http://localhost:5173','http://127.0.0.1:5173','http://localhost:4173','http://127.0.0.1:4173'])origins.add(value);
+ }
+ if(process.env.WHATSAPP_ENABLED==='1'){
+  try{const {createServices}=await import('./services.js');services=await createServices({origins});}
+  catch{console.error('[admin] Configuration or database initialization failed. Check DATABASE_URL, ADMIN_JWT_SECRET and WHATSAPP_ENCRYPTION_KEY.');}
+ }
+ const app=createStickerServer({services});
+ app.listen(Number(process.env.PORT||8080),process.env.HOST||'0.0.0.0',()=>console.log(`Sticker Studio API: http://localhost:${process.env.PORT||8080}`));
+ if(services)services.start().catch(()=>console.error('[whatsapp] Saved connection could not resume. Reconnect from the admin dashboard.'));
+ let shuttingDown=false;
+ async function shutdown(){
+  if(shuttingDown)return;shuttingDown=true;
+  const deadline=setTimeout(()=>process.exit(1),25000);deadline.unref();
+  await new Promise(resolve=>app.close(resolve));
+  try{await services?.close()}catch{console.error('[whatsapp] Shutdown could not finish cleanly.');}
+  clearTimeout(deadline);
+ }
+ process.once('SIGTERM',shutdown);process.once('SIGINT',shutdown);
+}
